@@ -19,8 +19,9 @@
 
 
 import configparser
-from xmlrpclib import ServerProxy
-from utils import Descriptor
+from xmlrpc import client
+#from xmlrpclib import ServerProxy
+# from utils import Descriptor
 
 ## A standard exception to indicate an error in the config file
 class ApiError(Exception):
@@ -47,7 +48,7 @@ class connection(object):
 		self.pages = None
 		self.pageitems = {}
 		self.categories = None
-		self.config = configparser.SafeConfigParser({"site":None, "user":None, "key":None})
+		self.config = configparser.ConfigParser({"site":None, "user":None, "key":None})
 		self.config.read(filename)
 		self.username = self.config.get(user+"@wikidot", "user")
 		if self.username == None:
@@ -57,7 +58,7 @@ class connection(object):
 		self.key = self.config.get(user+"@wikidot", "key")
 		if self.key == None:
 			raise ApiError("Key not found in section ["+user+"@wikidot] of file "+filename)
-		self.server = ServerProxy("https://"+self.username+":"+self.key+"@www.wikidot.com/xml-rpc-api.php")
+		self.server = client.ServerProxy("https://"+self.username+":"+self.key+"@www.wikidot.com/xml-rpc-api.php")
 		# print "I am ", self.username, " with key ", self.key
 	
 	def page_is_valid(self,name):
@@ -79,13 +80,13 @@ class connection(object):
 			self.currentsite = site
 		else:
 			raise ApiError("Site name is invalid")
-	Site = Descriptor(get_site, set_site)
+	Site = (get_site, set_site)
 	
-	def get_username(self):
+	def get_username(self) -> object:
 		return self.currentsite
 	def get_username(self, site):
 		self.currentsite = site
-	Username = Descriptor(get_username, get_username)
+	Username = (get_username, get_username)
 
 
 	def refresh_pages(self):
@@ -93,11 +94,11 @@ class connection(object):
 
 		return self.pages
 
-	def get_pages(self):
+	def get_pages(self) -> object:
 		if self.pages == None:
 			self.refresh_pages()
 		return self.pages
-	Pages = Descriptor(get_pages, ReadOnly)
+	Pages = (get_pages, ReadOnly)
 	
 	def mark_new_page(self, page, category="_default"):
 		if self.pages != None:
@@ -116,7 +117,7 @@ class connection(object):
 		if self.categories == None:
 			self.refresh_categories()
 		return self.categories
-	Categories = Descriptor(get_categories, ReadOnly)
+	Categories = (get_categories, ReadOnly)
 
 	def mark_new_category(self, category):
 		if self.categories != None:
@@ -127,19 +128,23 @@ class connection(object):
 				# category was new so invalidate page list
 				self.categories = None
 
+# If no category is supplied, split a name of the form <category>:<page> into a tuple
+# otherwise, return the supplied category and page as a tuple
 	def general_page_category(self, page, category):
 		if category == "_default" and ":" in page:
 			p = page.find(":")
 			category = page[:p]
 			page = page[p+1:]
 		return page, category
-		
+
+# Return a name of the form <category>:<page> (if a category was supplied) or just <page> if not
 	def fullname(self, page, category="_default"):
 		if category =="_default":
 			return page
 		else:
 			return category+":"+page
 
+# Return True if the specified page and category is in Pages
 	def page_exists(self, page, category="_default"):
 		page, category = self.general_page_category(page, category)
 		return self.fullname(page, category) in self.Pages
